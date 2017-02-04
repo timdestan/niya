@@ -79,6 +79,7 @@ module Board = struct
   let indices = LE.cart_prod row_indices col_indices
 
   let offset_of_index (r, c) = row_size * r + c
+  let index_of_offset o = (o / row_size, o mod row_size)
 
   type t = Cell.t list
 
@@ -88,6 +89,12 @@ module Board = struct
   let set (b: t) (i: index) (new_value: Cell.t): t =
     let o' = offset_of_index i in
     L.mapi (fun o v -> if o = o' then new_value else v) b
+
+  let open_cells (b: t): (garden_tile * index) list =
+    L.mapi (fun o v -> match v with
+      | Cell.Faction _ -> []
+      | Cell.GardenTile g -> [(g, index_of_offset o)]
+    ) b |> L.flatten
 
   let create_random (): t =
     LE.shuffle all_garden_tiles |> L.map Cell.garden
@@ -117,6 +124,16 @@ let new_game () = {
   last_move = None;
 }
 
+let legal_moves (state:game_state): Board.index list =
+  let open_cells = Board.open_cells state.board in
+  let legal_indexes (garden_tile, i) =
+    let (p, s) = garden_tile in
+    match state.last_move with
+      | None -> [i]
+      | Some (p', s') when p = p' || s = s' -> [i]
+      | _ -> []
+  in List.map legal_indexes open_cells |> List.flatten 
+
 let move (state:game_state) (i:Board.index): game_state option =
   let updated (tile: garden_tile): game_state = {
     last_move = Some tile;
@@ -131,20 +148,27 @@ let move (state:game_state) (i:Board.index): game_state option =
       | _ -> None (* Doesn't match constraints *)
     )
 
+let choose_random_move indexes =
+  let choice = Random.int (List.length indexes) in
+  List.nth indexes choice
+
+let play_random_game (): game_state list =
+  let rec aux s prior_states =
+    match (legal_moves s) with
+    | [] -> L.rev prior_states
+    | nonempty -> (
+      let m = choose_random_move nonempty in
+      match move s m with
+      | None -> failwith "Unexpected illegal move."
+      | Some s' -> aux s' (s' :: prior_states)
+    )
+  in let s = new_game ()
+  in aux s [s]
 ;;
 
 Random.self_init ();;
 
-let g = new_game ();;
-
-print_endline @@ Board.as_string g.board;;
-
-print_newline ();;
-
-let b' = move g (2, 3);;
-
-print_endline (
-  match b' with
-    | None -> "Nope"
-    | Some {board = b;} -> Board.as_string b
-)
+play_random_game ()
+|> L.map (fun g -> Board.as_string g.board)
+|> String.concat "\n\n"
+|> print_endline
