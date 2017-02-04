@@ -1,3 +1,2 @@
-
-*.cm[io]
-a.out
+_build/
+niya.native
