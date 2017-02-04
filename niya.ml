@@ -88,7 +88,7 @@ module Board = struct
          | Either.Left (plant, symbol) ->
             string_of_plant plant ^ string_of_symbol symbol
          | Either.Right faction -> string_of_faction faction 
-      ) col_indices |> String.concat ", " |> surround
+      ) col_indices |> String.concat "   " |> surround
     ) row_indices |> String.concat "\n"
 end
 
@@ -109,5 +109,7 @@ let new_game () = {
 }
 
 ;;
+
+Random.self_init () ;;
 
 print_endline @@ Board.as_string @@ Board.create_random ()
