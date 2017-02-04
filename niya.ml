@@ -34,6 +34,10 @@ module LE = ListExt
 
 type faction = Red | Black
 
+let other_faction = function
+  | Red -> Black
+  | Black -> Red
+
 let string_of_faction = function
   | Red -> "🔴"
   | Black -> "⬤"
@@ -77,6 +81,13 @@ module Board = struct
   type cell = (garden_tile, faction) Either.t
   type t = cell list
 
+  let at (b: t) (i: index) : cell =
+    List.nth b (offset_of_index i)
+
+  let set (b: t) (i: index) (new_value: cell): t =
+    let o' = offset_of_index i in
+    L.mapi (fun o v -> if o = o' then new_value else v) b
+
   let create_random (): t =
     LE.shuffle all_garden_tiles |> L.map E.left
 
@@ -84,7 +95,7 @@ module Board = struct
     let surround s = "[ " ^ s ^ " ]" in
     L.map (fun r ->
       L.map (fun c ->
-        match L.nth b (offset_of_index (r,c)) with
+        match at b (r,c) with
          | Either.Left (plant, symbol) ->
             string_of_plant plant ^ string_of_symbol symbol
          | Either.Right faction -> string_of_faction faction 
@@ -98,18 +109,44 @@ type game_state = {
   last_move: garden_tile option;
 }
 
-let choose_starting_player () = match Random.bool () with
+let choose_starting_faction () = match Random.bool () with
   | true -> Red
   | false -> Black
 
 let new_game () = {
-  whose_turn = choose_starting_player ();
+  whose_turn = choose_starting_faction ();
   board = Board.create_random ();
   last_move = None;
 }
 
+let move (state:game_state) (i:Board.index): game_state option =
+  let updated (tile: garden_tile): game_state = {
+    last_move = Some tile;
+    board = Board.set state.board i (Either.Right state.whose_turn);
+    whose_turn = other_faction state.whose_turn;
+  } in
+  match (Board.at state.board i) with
+    | Either.Right _ -> None (* Already occupied *)
+    | Either.Left (p, s) -> (match state.last_move with
+      | None -> Some(updated (p, s))
+      | Some (p', s') when p = p' || s = s' -> Some(updated (p, s))
+      | _ -> None (* Doesn't match constraints *)
+    )
+
 ;;
 
-Random.self_init () ;;
+Random.self_init ();;
 
-print_endline @@ Board.as_string @@ Board.create_random ()
+let g = new_game ();;
+
+print_endline @@ Board.as_string g.board;;
+
+print_newline ();;
+
+let b' = move g (2, 3);;
+
+print_endline (
+  match b' with
+    | None -> "Nope"
+    | Some {board = b;} -> Board.as_string b
+)
