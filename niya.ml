@@ -1,14 +1,5 @@
 module L = List
 
-module Either = struct
-  type ('l, 'r) t = Left of 'l 
-                  | Right of 'r
-
-  let right r = Right r
-  let left l = Left l
-end
-module E = Either
-
 module ListExt = struct
   open List
 
@@ -65,6 +56,18 @@ type garden_tile = plant * symbol
 let all_garden_tiles = LE.cart_prod all_plants all_symbols
 
 module Board = struct
+  module Cell = struct
+    type t = GardenTile of garden_tile | Faction of faction
+
+    let garden g = GardenTile g
+    let faction f = Faction f
+
+    let string_of_cell = function
+      | GardenTile (plant, symbol) ->
+            string_of_plant plant ^ string_of_symbol symbol
+      | Faction faction -> string_of_faction faction 
+  end
+
   type row = int
   type col = int
   type index = row * col
@@ -78,30 +81,26 @@ module Board = struct
 
   let offset_of_index (r, c) = row_size * r + c
 
-  type cell = (garden_tile, faction) Either.t
-  type t = cell list
+  type t = Cell.t list
 
-  let at (b: t) (i: index) : cell =
+  let at (b: t) (i: index) : Cell.t =
     List.nth b (offset_of_index i)
 
-  let set (b: t) (i: index) (new_value: cell): t =
+  let set (b: t) (i: index) (new_value: Cell.t): t =
     let o' = offset_of_index i in
     L.mapi (fun o v -> if o = o' then new_value else v) b
 
   let create_random (): t =
-    LE.shuffle all_garden_tiles |> L.map E.left
+    LE.shuffle all_garden_tiles |> L.map Cell.garden
 
   let as_string (b: t):string =
     let surround s = "[ " ^ s ^ " ]" in
     L.map (fun r ->
-      L.map (fun c ->
-        match at b (r,c) with
-         | Either.Left (plant, symbol) ->
-            string_of_plant plant ^ string_of_symbol symbol
-         | Either.Right faction -> string_of_faction faction 
-      ) col_indices |> String.concat "   " |> surround
+      L.map (fun c -> Cell.string_of_cell (at b (r,c))) col_indices
+        |> String.concat "   " |> surround
     ) row_indices |> String.concat "\n"
 end
+module Cell = Board.Cell
 
 type game_state = {
   whose_turn: faction;
@@ -122,12 +121,12 @@ let new_game () = {
 let move (state:game_state) (i:Board.index): game_state option =
   let updated (tile: garden_tile): game_state = {
     last_move = Some tile;
-    board = Board.set state.board i (Either.Right state.whose_turn);
+    board = Board.set state.board i (Cell.Faction state.whose_turn);
     whose_turn = other_faction state.whose_turn;
   } in
   match (Board.at state.board i) with
-    | Either.Right _ -> None (* Already occupied *)
-    | Either.Left (p, s) -> (match state.last_move with
+    | Cell.Faction _ -> None (* Already occupied *)
+    | Cell.GardenTile (p, s) -> (match state.last_move with
       | None -> Some(updated (p, s))
       | Some (p', s') when p = p' || s = s' -> Some(updated (p, s))
       | _ -> None (* Doesn't match constraints *)
