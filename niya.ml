@@ -17,9 +17,8 @@ module ListExt = struct
      tags. Not quite a perfect random shuffle if any of the tags are duplicates,
      but close enough. *)
   let shuffle l =
-    let tagged = map (fun c -> (Random.bits (), c)) l in
-    let sorted = sort compare tagged in
-    map snd sorted
+    let pair_with_tag c = (Random.bits (), c) in
+    map pair_with_tag l |> sort compare |> map snd
 end
 module LE = ListExt
 
