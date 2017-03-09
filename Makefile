@@ -1,7 +1,7 @@
 all: niya.native
 
 niya.native:
-	ocamlbuild niya.native
+	rebuild niya.native
 
 .PHONY: clean
 
