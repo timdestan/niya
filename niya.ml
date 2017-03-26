@@ -1,7 +1,5 @@
-module L = List
-
-module ListExt = struct
-  open List
+module List = struct
+  include List
 
   let range a b = 
     let rec aux a acc =
@@ -20,7 +18,6 @@ module ListExt = struct
     let pair_with_tag c = (Random.bits (), c) in
     map pair_with_tag l |> sort compare |> map snd
 end
-module LE = ListExt
 
 type faction = Red | Black
 
@@ -52,7 +49,7 @@ let all_symbols = [Sun ; Tanzaku ; Bird ; Cloud]
 
 type garden_tile = plant * symbol
 
-let all_garden_tiles = LE.cart_prod all_plants all_symbols
+let all_garden_tiles = List.cart_prod all_plants all_symbols
 
 module Board = struct
   module Cell = struct
@@ -74,9 +71,9 @@ module Board = struct
   let row_size = 4
   let col_size = 4
 
-  let row_indices = LE.range 0 row_size
-  let col_indices = LE.range 0 col_size
-  let indices = LE.cart_prod row_indices col_indices
+  let row_indices = List.range 0 row_size
+  let col_indices = List.range 0 col_size
+  let indices = List.cart_prod row_indices col_indices
 
   let offset_of_index (r, c) = row_size * r + c
   let index_of_offset o = (o / row_size, o mod row_size)
@@ -88,21 +85,21 @@ module Board = struct
 
   let set (b: t) (i: index) (new_value: Cell.t): t =
     let o' = offset_of_index i in
-    L.mapi (fun o v -> if o = o' then new_value else v) b
+    List.mapi (fun o v -> if o = o' then new_value else v) b
 
   let open_cells (b: t): (garden_tile * index) list =
-    L.mapi (fun o v -> match v with
+    List.mapi (fun o v -> match v with
       | Cell.Faction _ -> []
       | Cell.GardenTile g -> [(g, index_of_offset o)]
-    ) b |> L.flatten
+    ) b |> List.flatten
 
   let create_random (): t =
-    LE.shuffle all_garden_tiles |> L.map Cell.garden
+    List.shuffle all_garden_tiles |> List.map Cell.garden
 
   let as_string (b: t):string =
     let surround s = "[ " ^ s ^ " ]" in
-    L.map (fun r ->
-      L.map (fun c -> Cell.string_of_cell (at b (r,c))) col_indices
+    List.map (fun r ->
+      List.map (fun c -> Cell.string_of_cell (at b (r,c))) col_indices
         |> String.concat "   " |> surround
     ) row_indices |> String.concat "\n"
 end
@@ -155,7 +152,7 @@ let choose_random_move indexes =
 let play_random_game (): game_state list =
   let rec aux s prior_states =
     match (legal_moves s) with
-    | [] -> L.rev prior_states
+    | [] -> List.rev prior_states
     | nonempty -> (
       let m = choose_random_move nonempty in
       match move s m with
@@ -169,6 +166,6 @@ let play_random_game (): game_state list =
 Random.self_init ();;
 
 play_random_game ()
-|> L.map (fun g -> Board.as_string g.board)
+|> List.map (fun g -> Board.as_string g.board)
 |> String.concat "\n\n"
 |> print_endline
