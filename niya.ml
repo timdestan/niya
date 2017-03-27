@@ -1,9 +1,9 @@
 module List = struct
   include List
 
-  let range a b = 
+  let range a b =
     let rec aux a acc =
-      if a >= b then acc else aux (a + 1) (a :: acc)
+      if a >= b then rev acc else aux (a + 1) (a :: acc)
     in aux a []
 
   let flat_map f l = map f l |> flatten
@@ -61,7 +61,7 @@ module Board = struct
     let string_of_cell = function
       | GardenTile (plant, symbol) ->
             string_of_plant plant ^ string_of_symbol symbol
-      | Faction faction -> string_of_faction faction 
+      | Faction faction -> string_of_faction faction
   end
 
   type row = int
@@ -71,14 +71,19 @@ module Board = struct
   let row_size = 4
   let col_size = 4
 
-  let row_indices = List.range 0 row_size
-  let col_indices = List.range 0 col_size
-  let indices = List.cart_prod row_indices col_indices
+  let row_offsets = List.range 0 row_size
+  let column_offsets = List.range 0 col_size
+  (* let indices = List.cart_prod row_offsets column_offsets *)
 
   let offset_of_index (r, c) = row_size * r + c
   let index_of_offset o = (o / row_size, o mod row_size)
 
   type t = Cell.t list
+
+  let rows (board: t) : Cell.t list list =
+    let row (i: int) : Cell.t list =
+      [4 * i; 4 * i+1; 4 * i+2; 4 * i+3] |> List.map (List.nth board) in
+    List.map row row_offsets
 
   let at (b: t) (i: index) : Cell.t =
     List.nth b (offset_of_index i)
@@ -99,9 +104,9 @@ module Board = struct
   let as_string (b: t):string =
     let surround s = "[ " ^ s ^ " ]" in
     List.map (fun r ->
-      List.map (fun c -> Cell.string_of_cell (at b (r,c))) col_indices
+      List.map (fun c -> Cell.string_of_cell (at b (r,c))) column_offsets
         |> String.concat "   " |> surround
-    ) row_indices |> String.concat "\n"
+    ) row_offsets |> String.concat "\n"
 end
 module Cell = Board.Cell
 
@@ -129,7 +134,7 @@ let legal_moves (state:game_state): Board.index list =
       | None -> [i]
       | Some (p', s') when p = p' || s = s' -> [i]
       | _ -> []
-  in List.map legal_indexes open_cells |> List.flatten 
+  in List.map legal_indexes open_cells |> List.flatten
 
 let move (state:game_state) (i:Board.index): game_state option =
   let updated (tile: garden_tile): game_state = {
