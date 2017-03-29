@@ -83,6 +83,16 @@ module Board = struct
 
   let rows (board: t) : row list = board
 
+  let columns (board: t): column list =
+    let rec combine (c: column) (cs: row list) : column list = match (c, cs) with
+      | ((x :: xs), (y :: ys)) -> (x :: y) :: combine xs ys
+      | _ -> [] in
+    let rec aux = function
+    | [] -> []
+    | [x] -> List.map (fun x -> [x]) x
+    | r :: rs -> combine r (aux rs) in
+    aux board
+
   let at (b: t) (index:index) : Cell.t =
     let (row, column) = index in
     List.nth (List.nth b row) column
