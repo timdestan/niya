@@ -76,15 +76,14 @@ module Board = struct
   let row_offsets = List.range 0 row_size
   let column_offsets = List.range 0 col_size
 
-  type column = Cell.t list
   type row = Cell.t list
   type t = row list
   type index = (int * int)
 
   let rows (board: t) : row list = board
 
-  let columns (board: t): column list =
-    let rec combine (c: column) (cs: row list) : column list = match (c, cs) with
+  let columns (board: t): row list =
+    let rec combine (c: row) (cs: row list) : row list = match (c, cs) with
       | ((x :: xs), (y :: ys)) -> (x :: y) :: combine xs ys
       | _ -> [] in
     let rec aux = function
@@ -92,6 +91,13 @@ module Board = struct
     | [x] -> List.map (fun x -> [x]) x
     | r :: rs -> combine r (aux rs) in
     aux board
+
+  let main_diagonal (board: t) : row =
+    List.fold_left (fun (acc, n) r -> (List.nth r n :: acc, n+1)) ([],0) board
+    |> fst
+    |> List.rev
+
+  let off_diagonal (board: t) : row = main_diagonal (List.map List.rev board)
 
   let at (b: t) (index:index) : Cell.t =
     let (row, column) = index in
@@ -136,12 +142,11 @@ module Board = struct
     |> List.shuffle
     |> deal
 
-  let as_string (b: t):string =
+  let string_of_row (r: row) =
     let surround s = "[ " ^ s ^ " ]" in
-    List.map (fun r ->
-      List.map (fun c -> Cell.string_of_cell (at b (r,c))) column_offsets
-        |> String.concat "   " |> surround
-    ) row_offsets |> String.concat "\n"
+    List.map Cell.string_of_cell r |> String.concat "  " |> surround
+
+  let as_string (b: t):string = List.map string_of_row b |> String.concat "\n"
 end
 module Cell = Board.Cell
 
