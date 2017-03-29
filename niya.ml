@@ -11,12 +11,18 @@ module List = struct
   let cart_prod (la: 'a list) (lb: 'b list): ('a * 'b) list =
     flat_map (fun a -> map (fun b -> (a, b)) lb) la
 
-  (* Tag each list entry with 30 random bits, sort by the tags, then drop the
-     tags. Not quite a perfect random shuffle if any of the tags are duplicates,
-     but close enough. *)
+  (** Tag each list entry with 30 random bits, sort by the tags, then drop the
+      tags. Not quite a perfect random shuffle if any of the tags are duplicates,
+      but close enough. *)
   let shuffle l =
     let pair_with_tag c = (Random.bits (), c) in
     map pair_with_tag l |> sort compare |> map snd
+
+  (** Takes a list of options and returns the inner values, dropping the Nones. *)
+  let somes (l: 'a option list): 'a list =
+    rev (fold_left (fun acc x -> match x with
+        | None -> acc
+        | Some x -> x :: acc) [] l)
 end
 
 type faction = Red | Black
@@ -64,42 +70,61 @@ module Board = struct
       | Faction faction -> string_of_faction faction
   end
 
-  type row = int
-  type col = int
-  type index = row * col
-
   let row_size = 4
   let col_size = 4
 
   let row_offsets = List.range 0 row_size
   let column_offsets = List.range 0 col_size
-  (* let indices = List.cart_prod row_offsets column_offsets *)
 
-  let offset_of_index (r, c) = row_size * r + c
-  let index_of_offset o = (o / row_size, o mod row_size)
+  type column = Cell.t list
+  type row = Cell.t list
+  type t = row list
+  type index = (int * int)
 
-  type t = Cell.t list
+  let rows (board: t) : row list = board
 
-  let rows (board: t) : Cell.t list list =
-    let row (i: int) : Cell.t list =
-      [4 * i; 4 * i+1; 4 * i+2; 4 * i+3] |> List.map (List.nth board) in
-    List.map row row_offsets
-
-  let at (b: t) (i: index) : Cell.t =
-    List.nth b (offset_of_index i)
+  let at (b: t) (index:index) : Cell.t =
+    let (row, column) = index in
+    List.nth (List.nth b row) column
 
   let set (b: t) (i: index) (new_value: Cell.t): t =
-    let o' = offset_of_index i in
-    List.mapi (fun o v -> if o = o' then new_value else v) b
+    let (row, column) = i in
+    List.mapi (fun r' old_row ->
+        if row = r'
+        then List.mapi (fun c' old_value ->
+            if column = c'
+            then new_value
+            else old_value
+          ) old_row
+        else old_row) b
 
-  let open_cells (b: t): (garden_tile * index) list =
-    List.mapi (fun o v -> match v with
-      | Cell.Faction _ -> []
-      | Cell.GardenTile g -> [(g, index_of_offset o)]
-    ) b |> List.flatten
+  (** Produce the cells as a flattened list, bundled
+      with the index. *)
+  let cells (board: t): (Cell.t * index) list =
+    List.mapi (fun r row ->
+        List.mapi (fun c value ->
+            (value, (r,c))
+          ) row) board
+    |> List.flatten
+
+  let open_cells (board: t): (garden_tile * index) list =
+    cells board
+    |> List.map (function
+        | (Cell.Faction _, _) -> None
+        | (Cell.GardenTile g, i) -> Some (g, i))
+    |> List.somes
 
   let create_random (): t =
-    List.shuffle all_garden_tiles |> List.map Cell.garden
+    let deal tiles =
+      let rec aux acc tiles = match tiles with
+        | a :: b :: c :: d :: rest -> aux ([a;b;c;d] :: acc) rest
+        | [] -> acc
+        | _ -> failwith "Expected a list that is divisible by 4."
+      in aux [] tiles
+    in all_garden_tiles
+    |> List.map Cell.garden
+    |> List.shuffle
+    |> deal
 
   let as_string (b: t):string =
     let surround s = "[ " ^ s ^ " ]" in
