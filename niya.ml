@@ -68,6 +68,30 @@ module Board = struct
       | GardenTile (plant, symbol) ->
             string_of_plant plant ^ string_of_symbol symbol
       | Faction faction -> string_of_faction faction
+
+    let faction_of_cell = function
+      | GardenTile _ -> None
+      | Faction f -> Some f
+
+    (** Finds a common faction among the cells in the list, if such a faction
+      * exists. *)
+    let common_faction (cells: t list): faction option =
+      let module Local = struct
+        type 'a result = Found of 'a | NotFound | DunnoYet
+
+        let to_option = function
+          | Found a -> Some a
+          | NotFound | DunnoYet -> None
+
+        let find_common (f:'a -> 'b option) (alist: 'a list): 'b option =
+          List.fold_left (fun acc a -> match f a with
+            | None -> NotFound
+            | Some b -> (match acc with
+              | DunnoYet -> Found b
+              | Found b' when b = b' -> acc
+              | _ -> NotFound)) DunnoYet alist |> to_option
+      end in
+      Local.find_common faction_of_cell cells
   end
 
   type row = Cell.t list
@@ -170,6 +194,30 @@ let legal_moves (state:game_state): Board.index_pair list =
       | _ -> []
   in List.map legal_indexes open_cells |> List.flatten
 
+let possible_winning_formations (b : Board.t): Board.row list =
+  (
+    (** TODO: You can also win by getting a box of 4. *)
+    Board.main_diagonal b ::
+    Board.off_diagonal b ::
+    (Board.rows b) @
+    (Board.columns b)
+  )
+
+(** Determine whether there is a winner for the given game state. *)
+let winner (state: game_state): faction option =
+  let possible_wins = possible_winning_formations state.board in
+  let common_factions =
+    List.map Board.Cell.common_faction possible_wins |> List.somes in
+  match common_factions with
+    (** In theory, there could be multiple factions, but a real game would end
+      * on the move that creates the first 4-in-a-row, so in practice we don't
+      * need to check that they are all the same. *)
+   | f :: _ -> Some f
+   | [] ->
+    (match legal_moves state with
+      | [] -> Some (other_faction state.whose_turn)
+      | _ -> None)
+
 let move (state:game_state) (pair: Board.index_pair): game_state option =
   let updated (tile: garden_tile): game_state = {
     last_move = Some tile;
@@ -190,14 +238,15 @@ let choose_random_move indexes =
 
 let play_random_game (): game_state list =
   let rec aux s prior_states =
-    match (legal_moves s) with
-    | [] -> List.rev prior_states
-    | nonempty -> (
-      let m = choose_random_move nonempty in
+    match winner s with
+    | Some _ -> List.rev prior_states
+    | None ->
+      (** If there were no legal moves, there should have been a winner.
+        * So assume legal moves are non-empty. *)
+      let m = choose_random_move (legal_moves s) in
       match move s m with
       | None -> failwith "Unexpected illegal move."
       | Some s' -> aux s' (s' :: prior_states)
-    )
   in let s = new_game ()
   in aux s [s]
 ;;
