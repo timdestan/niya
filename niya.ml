@@ -70,15 +70,9 @@ module Board = struct
       | Faction faction -> string_of_faction faction
   end
 
-  let row_size = 4
-  let col_size = 4
-
-  let row_offsets = List.range 0 row_size
-  let column_offsets = List.range 0 col_size
-
   type row = Cell.t list
   type t = row list
-  type index = (int * int)
+  type index_pair = (int * int)
 
   let rows (board: t) : row list = board
 
@@ -99,12 +93,12 @@ module Board = struct
 
   let off_diagonal (board: t) : row = main_diagonal (List.map List.rev board)
 
-  let at (b: t) (index:index) : Cell.t =
-    let (row, column) = index in
+  let at (b: t) (pair: index_pair) : Cell.t =
+    let (row, column) = pair in
     List.nth (List.nth b row) column
 
-  let set (b: t) (i: index) (new_value: Cell.t): t =
-    let (row, column) = i in
+  let set (b: t) (pair: index_pair) (new_value: Cell.t): t =
+    let (row, column) = pair in
     List.mapi (fun r' old_row ->
         if row = r'
         then List.mapi (fun c' old_value ->
@@ -115,15 +109,15 @@ module Board = struct
         else old_row) b
 
   (** Produce the cells as a flattened list, bundled
-      with the index. *)
-  let cells (board: t): (Cell.t * index) list =
+      with the (row, column) index pair. *)
+  let cells (board: t): (Cell.t * index_pair) list =
     List.mapi (fun r row ->
         List.mapi (fun c value ->
             (value, (r,c))
           ) row) board
     |> List.flatten
 
-  let open_cells (board: t): (garden_tile * index) list =
+  let open_cells (board: t): (garden_tile * index_pair) list =
     cells board
     |> List.map (function
         | (Cell.Faction _, _) -> None
@@ -166,7 +160,7 @@ let new_game () = {
   last_move = None;
 }
 
-let legal_moves (state:game_state): Board.index list =
+let legal_moves (state:game_state): Board.index_pair list =
   let open_cells = Board.open_cells state.board in
   let legal_indexes (garden_tile, i) =
     let (p, s) = garden_tile in
@@ -176,13 +170,13 @@ let legal_moves (state:game_state): Board.index list =
       | _ -> []
   in List.map legal_indexes open_cells |> List.flatten
 
-let move (state:game_state) (i:Board.index): game_state option =
+let move (state:game_state) (pair: Board.index_pair): game_state option =
   let updated (tile: garden_tile): game_state = {
     last_move = Some tile;
-    board = Board.set state.board i (Cell.Faction state.whose_turn);
+    board = Board.set state.board pair (Cell.Faction state.whose_turn);
     whose_turn = other_faction state.whose_turn;
   } in
-  match (Board.at state.board i) with
+  match (Board.at state.board pair) with
     | Cell.Faction _ -> None (* Already occupied *)
     | Cell.GardenTile (p, s) -> (match state.last_move with
       | None -> Some(updated (p, s))
